@@ -1,0 +1,45 @@
+version: "3.3"
+
+services:
+  fbit:
+    image: fluent/fluent-bit:2.2.2-debug
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - fbit-storage:/var/tmp
+
+  echo:
+    image: mendhak/http-https-echo:28
+    environment:
+      ECHO_BACK_TO_CLIENT: "false"
+
+  grafana:
+    image: grafana/grafana:10.1.9
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=some-pass
+      - GF_AUTH_BASIC_ENABLED=true
+    volumes:
+      - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+
+  telegraf:
+    image: telegraf:1.23-alpine
+    pid: service:fbit
+    network_mode: service:fbit
+    entrypoint: telegraf
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf
+      - fbit-storage:/var/tmp
+    depends_on:
+      grafana:
+        condition: service_started
+      fbit:
+        condition: service_started
+
+volumes:
+  fbit-storage:
+    driver: local
+    driver_opts:
+      type: "tmpfs"
+      device: "tmpfs"
